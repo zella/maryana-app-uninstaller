@@ -10,6 +10,7 @@ Crossplatform adb gui for deleting any applications (without root).
 
 
 ## Usage:
+- Enable "usb debugging" in developer settings of android device
 - Install adb
 - Install java
 - Download adb-app-uninstaller.xxx.jar from "releases"
