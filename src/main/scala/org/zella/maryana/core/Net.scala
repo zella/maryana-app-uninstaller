@@ -1,39 +1,65 @@
 package org.zella.maryana.core
 
-import org.zella.maryana.core.Net.Mark
-import play.api.libs.json.Json
+import akka.actor.ActorSystem
+import akka.stream.ActorMaterializer
+import org.zella.maryana.core.Net.{AppPackageNet, Mark}
+import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
-import play.libs.ws.StandaloneWSClient
-import play.shaded.ahc.org.asynchttpclient.AsyncHttpClient
-
-import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.concurrent.duration._
 
-class Net() {
+class Net(implicit val system: ActorSystem) {
 
-  def getPackageInfo(appPackage: String): Future[String] = {
+  import play.api.libs.ws.JsonBodyReadables._
+
+  implicit val materializer = ActorMaterializer()
+
+  //  def getPackageInfo(appPackage: String): Future[Mark] = {
+  //    val wsClient: StandaloneAhcWSClient = StandaloneAhcWSClient()
+  //    wsClient.underlying
+  //    wsClient
+  //      .url(s"${Net.BaseUrl}/app")
+  //      .addQueryStringParameters("app" -> appPackage)
+  //      .withRequestTimeout(Net.Timeout)
+  //      .get()
+  //      .map(resp => resp.body[JsValue])
+  //  }
+
+  def getPackagesInfo(appPackages: Set[String]): Future[Seq[AppPackageNet]] = {
     val wsClient: StandaloneAhcWSClient = StandaloneAhcWSClient()
+
+    val params = appPackages.map(p => ("app", p)).toSeq
+
     wsClient.underlying
     wsClient
-      .url(s"${Net.BaseUrl}/apps=$appPackage")
-      .addQueryStringParameters("app" -> appPackage)
-      .withRequestTimeout(10.seconds)
+      .url(s"${Net.BaseUrl}/apps")
+      .addQueryStringParameters(params: _*)
+      .withRequestTimeout(Net.Timeout)
       .get()
-      .map(resp => resp.body[Mark].toString)
+      .map(resp => resp.body[JsValue].as[Seq[AppPackageNet]])
   }
+
 }
 
 
 case object Net {
 
   val BaseUrl = "https://mary-ann-prototype.appspot.com"
+  val Timeout = 15.seconds
 
-  case class Mark(mark: String, `type`: String) {
-    override def toString: String = mark
-  }
+  case class Mark(mark: String, `type`: String)
+
+  case class AppPackageNet(app: String, mark: Mark)
+
 
   object Mark {
-    implicit val jsonFormat = Json.format[Mark]
+    implicit val jsonFormat = Json.reads[Mark]
   }
+
+  object AppPackageNet {
+    implicit val jsonFormat = Json.reads[AppPackageNet]
+  }
+
 
 }

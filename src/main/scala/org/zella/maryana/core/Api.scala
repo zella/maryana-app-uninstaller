@@ -1,8 +1,11 @@
 package org.zella.maryana.core
 
 import org.zella.maryana.ui.IView
+import org.zella.maryana.ui.MainApp.AppPackage
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.{Failure, Success}
 
-class Api(adb: String, p: ProcessRunner, view: IView) {
+class Api(adb: String, p: ProcessRunner, net: Net, view: IView) {
 
   def removePackage(pck: String) {
     exec[String](s"$adb shell pm uninstall --user 0 $pck",
@@ -39,7 +42,18 @@ class Api(adb: String, p: ProcessRunner, view: IView) {
         out.split(ProcessRunner.LineSeparator).toList
           .map(p => p.substring(p.lastIndexOf(".apk=") + 5))
       },
-      result => view.showInstalledPackages(result),
+      result => {
+
+        val appsLocal =  result.map(AppPackage(_, None)).sortBy(_.app).toSet
+        view.showInstalledPackages(appsLocal.toSeq.sortBy(_.app))
+        net.getPackagesInfo(result.toSet).onComplete {
+          case Failure(e) => //none
+          case Success(appsNet) =>
+            val appsNonLocal = appsNet.map(a => AppPackage(a.app, Some(a.mark))).sortBy(_.app).toSet
+            view.showInstalledPackages((appsNonLocal ++ appsLocal).toSeq.sortBy(_.app))
+        }
+
+      },
       err => if (err.nonEmpty) view.showCommandError(err)
     )
   }

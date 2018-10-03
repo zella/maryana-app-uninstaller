@@ -1,6 +1,6 @@
 package org.zella.maryana.ui
 
-import javafx.application.Application
+import javafx.application.{Application, Platform}
 import javafx.fxml.FXMLLoader
 import javafx.scene.{Node, Scene}
 import javafx.scene.control._
@@ -9,21 +9,30 @@ import javafx.scene.text.{Text, TextAlignment, TextFlow}
 import javafx.stage.Stage
 import java.io.IOException
 
+import akka.actor.ActorSystem
 import javafx.collections.FXCollections
 import javafx.event.{ActionEvent, EventHandler}
 import javafx.scene.control.Alert.AlertType
-import org.zella.maryana.core.{Api, ProcessRunner}
+import org.zella.maryana.core.Net.Mark
+import org.zella.maryana.core.{Api, Net, ProcessRunner}
+import org.zella.maryana.ui.MainApp.AppPackage
 
 class MainApp extends Application with IView {
+
   private var uninstallButton: Button = _
   private var appDetailText: TextFlow = _
   private var adbAboutLabel: Label = _
   private var deviceLabel: Label = _
-  private var appList: ListView[String] = _
+  private var appList: ListView[AppPackage] = _
   private var adbExecTextField: TextField = _
   private var refreshButton: Button = _
 
   private var api: Api = _
+
+  implicit val system = ActorSystem()
+  system.registerOnTermination {
+    System.exit(0)
+  }
 
   import java.util.prefs.Preferences
 
@@ -31,6 +40,7 @@ class MainApp extends Application with IView {
 
   def init(primaryStage: Stage): Unit =
     try { // Загружаем корневой макет из fxml файла.
+
       val loader = new FXMLLoader
       loader.setLocation(this.getClass.getResource("/main.fxml"))
       val rootLayout = loader.load.asInstanceOf[VBox]
@@ -41,7 +51,16 @@ class MainApp extends Application with IView {
 
       adbAboutLabel = scene.lookup("#labelAdbAbout").asInstanceOf[Label]
       deviceLabel = scene.lookup("#labelDevice").asInstanceOf[Label]
-      appList = scene.lookup("#listApps").asInstanceOf[ListView[String]]
+      appList = scene.lookup("#listApps").asInstanceOf[ListView[AppPackage]]
+
+      appList.setCellFactory(param => new ListCell[AppPackage]() {
+        override protected def updateItem(item: AppPackage, empty: Boolean): Unit = {
+          super.updateItem(item, empty)
+          if (empty || item == null) setText(null)
+          else setText(item.app)
+        }
+      })
+
       adbExecTextField =
         scene.lookup("#adbExecTextField").asInstanceOf[TextField]
       refreshButton = scene.lookup("#refreshButton").asInstanceOf[Button]
@@ -56,7 +75,7 @@ class MainApp extends Application with IView {
           ButtonType.NO)
         alert.showAndWait()
         if (alert.getResult() == ButtonType.YES) {
-          api.removePackage(selected)
+          api.removePackage(selected.app)
         }
       })
       adbExecTextField.setText("asddasadsasdasd")
@@ -94,11 +113,12 @@ class MainApp extends Application with IView {
 
   override def stop(): Unit = {
     prefs.put(MainApp.PREF_ADB, adbExecTextField.getText.trim)
-    super.stop()
+    system.terminate()
+    super.stop()  //FIXME dont use
   }
 
   def refreshAll(): Unit = {
-    api = new Api(adbExecTextField.getText, new ProcessRunner, MainApp.this)
+    api = new Api(adbExecTextField.getText, new ProcessRunner, new Net(), MainApp.this)
     appDetailText.getChildren.clear()
     appList.getItems.clear()
     api.adbAbout()
@@ -112,10 +132,12 @@ class MainApp extends Application with IView {
     setAppDetail(new Text(text))
   }
 
-  override def showInstalledPackages(packages: List[String]): Unit = {
-    appList.getItems.clear()
-    appList.getItems.addAll(packages: _*)
-    uninstallButton.setDisable(packages.isEmpty)
+  override def showInstalledPackages(packages: Seq[AppPackage]): Unit = {
+    Platform.runLater(() => {
+      appList.getItems.clear()
+      appList.getItems.addAll(packages: _*)
+      uninstallButton.setDisable(packages.isEmpty)
+    })
   }
 
   override def showUninstallResult(text: String): Unit = {
@@ -162,4 +184,11 @@ class MainApp extends Application with IView {
 
 object MainApp {
   val PREF_ADB = "pref_adb_path"
+
+  case class AppPackage(app: String, mark: Option[Mark]) {
+    override def equals(obj: scala.Any): Boolean = app.equals(obj.asInstanceOf[AppPackage].app)
+
+    override def hashCode(): Int = app.hashCode
+  }
+
 }
