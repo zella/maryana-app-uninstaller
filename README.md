@@ -1,4 +1,4 @@
-# maryanna-app-uninstaller
+# maryana-app-uninstaller
 
 Crossplatform adb gui for deleting any applications from android device (without root).
 
