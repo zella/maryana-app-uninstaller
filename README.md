@@ -1,6 +1,6 @@
 # maryanna-app-uninstaller
 
-Crossplatform adb gui for deleting any applications (without root).
+Crossplatform adb gui for deleting any applications from android device (without root).
 
 ### Features:
 - Select and delete application without command line 
