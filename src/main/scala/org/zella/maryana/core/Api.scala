@@ -40,7 +40,7 @@ class Api(adb: String, p: ProcessRunner, net: Net, view: IView) {
     exec[List[String]](s"$adb shell pm list packages -f",
       out => {
         out.split(ProcessRunner.LineSeparator).toList
-          .map(p => p.substring(p.lastIndexOf(".apk=") + 5))
+          .map(p => p.substring(p.lastIndexOf("/")+1))
       },
       result => {
 

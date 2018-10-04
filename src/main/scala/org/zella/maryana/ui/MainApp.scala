@@ -67,15 +67,16 @@ class MainApp extends Application with IView {
 
       refreshButton.setOnAction((event: ActionEvent) => refreshAll())
       uninstallButton.setOnAction((event: ActionEvent) => {
-        val selected = appList.getSelectionModel.getSelectedItem
+        val selected = appList.getSelectionModel.getSelectedItem.app
+        val pck = selected.substring(selected.lastIndexOf("=")+1)
         val alert = new Alert(
           AlertType.CONFIRMATION,
-          "Warning! Removing system apps may brick your phone! Delete " + selected + " ?",
+          "Warning! Delete " +pck + " ? Removing system apps may brick your phone!",
           ButtonType.YES,
           ButtonType.NO)
         alert.showAndWait()
         if (alert.getResult() == ButtonType.YES) {
-          api.removePackage(selected.app)
+          api.removePackage(pck)
         }
       })
       adbExecTextField.setText("asddasadsasdasd")
@@ -186,9 +187,9 @@ object MainApp {
   val PREF_ADB = "pref_adb_path"
 
   case class AppPackage(app: String, mark: Option[Mark]) {
-    override def equals(obj: scala.Any): Boolean = app.equals(obj.asInstanceOf[AppPackage].app)
-
-    override def hashCode(): Int = app.hashCode
+//    override def equals(obj: scala.Any): Boolean = app.equals(obj.asInstanceOf[AppPackage].app)
+//
+//    override def hashCode(): Int = app.hashCode
   }
 
 }
