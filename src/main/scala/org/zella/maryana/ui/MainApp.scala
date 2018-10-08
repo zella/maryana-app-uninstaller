@@ -1,21 +1,27 @@
 package org.zella.maryana.ui
 
-import javafx.application.{Application, Platform}
-import javafx.fxml.FXMLLoader
-import javafx.scene.{Node, Scene}
-import javafx.scene.control._
-import javafx.scene.layout.{Background, VBox}
-import javafx.scene.text.{Text, TextAlignment, TextFlow}
-import javafx.stage.Stage
 import java.io.IOException
+import java.util.concurrent.Executors
 
 import akka.actor.ActorSystem
+import javafx.application.{Application, Platform}
 import javafx.collections.FXCollections
-import javafx.event.{ActionEvent, EventHandler}
+import javafx.event.ActionEvent
+import javafx.fxml.FXMLLoader
 import javafx.scene.control.Alert.AlertType
-import org.zella.maryana.core.Net.Mark
-import org.zella.maryana.core.{Api, Net, ProcessRunner}
-import org.zella.maryana.ui.MainApp.AppPackage
+import javafx.scene.control._
+import javafx.scene.layout.VBox
+import javafx.scene.text.{Text, TextFlow}
+import javafx.scene.{Node, Scene}
+import javafx.stage.Stage
+import monix.execution.Scheduler
+import org.zella.maryana.controller.Controller
+import org.zella.maryana.core.ProcessRunner
+import org.zella.maryana.core.adb.IAdb.InstalledApp
+import org.zella.maryana.core.adb.impl.LocalAdb
+import org.zella.maryana.core.net.impl.SttpNet
+import monix.execution.Scheduler.Implicits.global
+import java.util.prefs.Preferences
 
 class MainApp extends Application with IView {
 
@@ -23,18 +29,11 @@ class MainApp extends Application with IView {
   private var appDetailText: TextFlow = _
   private var adbAboutLabel: Label = _
   private var deviceLabel: Label = _
-  private var appList: ListView[AppPackage] = _
+  private var appList: ListView[InstalledApp] = _
   private var adbExecTextField: TextField = _
   private var refreshButton: Button = _
 
-  private var api: Api = _
-
-  implicit val system = ActorSystem()
-  system.registerOnTermination {
-    System.exit(0)
-  }
-
-  import java.util.prefs.Preferences
+  private val controller: Controller = new Controller(new LocalAdb(new ProcessRunner), new SttpNet, this)
 
   private val prefs = Preferences.userNodeForPackage(this.getClass)
 
@@ -51,13 +50,13 @@ class MainApp extends Application with IView {
 
       adbAboutLabel = scene.lookup("#labelAdbAbout").asInstanceOf[Label]
       deviceLabel = scene.lookup("#labelDevice").asInstanceOf[Label]
-      appList = scene.lookup("#listApps").asInstanceOf[ListView[AppPackage]]
+      appList = scene.lookup("#listApps").asInstanceOf[ListView[InstalledApp]]
 
-      appList.setCellFactory(param => new ListCell[AppPackage]() {
-        override protected def updateItem(item: AppPackage, empty: Boolean): Unit = {
+      appList.setCellFactory(param => new ListCell[InstalledApp]() {
+        override protected def updateItem(item: InstalledApp, empty: Boolean): Unit = {
           super.updateItem(item, empty)
           if (empty || item == null) setText(null)
-          else setText(item.app)
+          else setText(item.pkg)
         }
       })
 
@@ -67,16 +66,15 @@ class MainApp extends Application with IView {
 
       refreshButton.setOnAction((event: ActionEvent) => refreshAll())
       uninstallButton.setOnAction((event: ActionEvent) => {
-        val selected = appList.getSelectionModel.getSelectedItem.app
-        val pck = selected.substring(selected.lastIndexOf("=")+1)
+        val selected = appList.getSelectionModel.getSelectedItem.pkg
         val alert = new Alert(
           AlertType.CONFIRMATION,
-          "Warning! Delete " +pck + " ? Removing system apps may brick your phone!",
+          "Warning! Delete " + selected + " ? Removing system apps may brick your phone!",
           ButtonType.YES,
           ButtonType.NO)
         alert.showAndWait()
         if (alert.getResult() == ButtonType.YES) {
-          api.removePackage(pck)
+          controller.removePackage(selected)
         }
       })
       adbExecTextField.setText("asddasadsasdasd")
@@ -114,65 +112,69 @@ class MainApp extends Application with IView {
 
   override def stop(): Unit = {
     prefs.put(MainApp.PREF_ADB, adbExecTextField.getText.trim)
-    system.terminate()
-    super.stop()  //FIXME dont use
+    super.stop()
   }
 
   def refreshAll(): Unit = {
-    api = new Api(adbExecTextField.getText, new ProcessRunner, new Net(), MainApp.this)
+    controller.initialize(adbExecTextField.getText)
     appDetailText.getChildren.clear()
     appList.getItems.clear()
-    api.adbAbout()
-    api.checkConnectedDevices()
-    api.listAllPackages()
-
+    controller.adbAbout()
+    controller.checkConnectedDevices()
+    controller.listAllPackages()
   }
 
   override def showCommandError(text: String): Unit = {
-    applyFailure(appDetailText)
-    setAppDetail(new Text(text))
-  }
-
-  override def showInstalledPackages(packages: Seq[AppPackage]): Unit = {
     Platform.runLater(() => {
-      appList.getItems.clear()
-      appList.getItems.addAll(packages: _*)
-      uninstallButton.setDisable(packages.isEmpty)
+      applyFailure(appDetailText)
+      setAppDetail(new Text(text))
     })
   }
 
   override def showUninstallResult(text: String): Unit = {
-    if (text.equalsIgnoreCase("Success"))
-      applySuccess(appDetailText)
-    else
-      applyFailure(appDetailText)
-    setAppDetail(new Text(text))
-    api.listAllPackages()
+    Platform.runLater(() => {
+      if (text.equalsIgnoreCase("Success"))
+        applySuccess(appDetailText)
+      else
+        applyFailure(appDetailText)
+      setAppDetail(new Text(text))
+      controller.listAllPackages()
+    })
   }
 
   override def showAdbVer(adbVer: String): Unit = {
-    applySuccess(adbAboutLabel)
-    adbAboutLabel.setText(adbVer)
+    Platform.runLater(() => {
+      applySuccess(adbAboutLabel)
+      adbAboutLabel.setText(adbVer)
+    })
   }
 
   override def showAdbVerFailed(adbVer: String): Unit = {
-    applyFailure(adbAboutLabel)
-    adbAboutLabel.setText(adbVer)
+    Platform.runLater(() => {
+      applyFailure(adbAboutLabel)
+      adbAboutLabel.setText(adbVer)
+    })
   }
 
   override def showDeviceConnected(): Unit = {
-    applySuccess(deviceLabel)
-    deviceLabel.setText("device connected")
+    Platform.runLater(() => {
+      applySuccess(deviceLabel)
+      deviceLabel.setText("device connected")
+    })
   }
 
   override def showNoDeviceConnected(): Unit = {
-    applyFailure(deviceLabel)
-    deviceLabel.setText("device not connected")
+    Platform.runLater(() => {
+      applyFailure(deviceLabel)
+      deviceLabel.setText("device not connected")
+    })
   }
 
   private def setAppDetail(node: Node): Unit = {
-    appDetailText.getChildren.clear()
-    appDetailText.getChildren.add(node)
+    Platform.runLater(() => {
+      appDetailText.getChildren.clear()
+      appDetailText.getChildren.add(node)
+    })
   }
 
   private def applySuccess(elem: Node): Unit =
@@ -181,15 +183,23 @@ class MainApp extends Application with IView {
   private def applyFailure(elem: Node): Unit =
     elem.setStyle("-fx-text-fill: red; -fx-font-size: 13px;")
 
+  override def showProgress(): Unit = "TODO"
+
+  override def statusBar(msg: String): Unit = "TODO"
+
+  override def clearStatusBar(): Unit = "TODO"
+
+  override def cancelProgress(): Unit = "TODO"
+
+  override def showInstalledApps(apps: Seq[InstalledApp]): Unit = {
+    Platform.runLater(() => {
+      appList.getItems.clear()
+      appList.getItems.addAll(apps: _*)
+      uninstallButton.setDisable(apps.isEmpty)
+    })
+  }
 }
 
 object MainApp {
   val PREF_ADB = "pref_adb_path"
-
-  case class AppPackage(app: String, mark: Option[Mark]) {
-//    override def equals(obj: scala.Any): Boolean = app.equals(obj.asInstanceOf[AppPackage].app)
-//
-//    override def hashCode(): Int = app.hashCode
-  }
-
 }

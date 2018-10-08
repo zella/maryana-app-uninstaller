@@ -11,13 +11,12 @@ lazy val root = (project in file(".")).
     libraryDependencies += scalaTest % Test
   )
 
-// https://mvnrepository.com/artifact/com.typesafe.play/play-ws-standalone-json
-libraryDependencies += "com.typesafe.play" %% "play-ws-standalone-json" % "1.1.10"
+libraryDependencies += "com.softwaremill.sttp" %% "okhttp-backend-monix" % "1.3.5"
 
-// https://mvnrepository.com/artifact/com.typesafe.play/play-ahc-ws-standalone
-libraryDependencies += "com.typesafe.play" %% "play-ahc-ws-standalone" % "1.1.10"
+libraryDependencies += "com.typesafe.play" %% "play-json" % "2.6.10"
+
+libraryDependencies += "io.monix" %% "monix" % "2.3.3"
 
 mainClass in assembly := Some("org.zella.maryana.ui.MainApp")
 
 test in assembly := {}
-

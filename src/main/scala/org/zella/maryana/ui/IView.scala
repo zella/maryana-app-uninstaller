@@ -1,18 +1,26 @@
 package org.zella.maryana.ui
 
-import org.zella.maryana.ui.MainApp.AppPackage
+import org.zella.maryana.core.adb.IAdb.InstalledApp
 
 trait IView {
 
-  def showCommandError(text:String)
+  def showProgress()
 
-  def showInstalledPackages(packages:Seq[AppPackage])
+  def statusBar(msg:String)
 
-  def showUninstallResult(text:String)
+  def clearStatusBar()
 
-  def showAdbVer(adbVer:String)
+  def cancelProgress()
 
-  def showAdbVerFailed(adbVer:String)
+  def showCommandError(text: String)
+
+  def showInstalledApps(apps: Seq[InstalledApp])
+
+  def showUninstallResult(text: String)
+
+  def showAdbVer(adbVer: String)
+
+  def showAdbVerFailed(adbVer: String)
 
   def showDeviceConnected()
 
