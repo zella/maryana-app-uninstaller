@@ -5,9 +5,6 @@ Crossplatform adb gui for deleting any applications from android device (without
 ### Features:
 - Select and delete application without command line 
 
-### TODO:
-- Info about package from community maintained database
-
 
 ## Usage:
 - Enable "usb debugging" in developer settings of android device
